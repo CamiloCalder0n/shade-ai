@@ -54,6 +54,7 @@ function AgentActivity() {
   const currentPrompt = useShaderStore((s) => s.currentPrompt);
   const retryCount = useShaderStore((s) => s.retryCount);
   const lastError = useShaderStore((s) => s.lastError);
+  const activeKind = useShaderStore((s) => s.activeKind);
 
   if (status === 'idle' || status === 'ready') return null;
 
@@ -89,6 +90,9 @@ function AgentActivity() {
           className="px-3 py-2 rounded-lg text-xs"
           style={{ background: 'var(--accent-glow)', color: 'var(--text)', border: '1px solid var(--accent)' }}
         >
+          {activeKind === 'refine' && (
+            <span className="font-medium" style={{ color: 'var(--cyan)' }}>✎ refine · </span>
+          )}
           {currentPrompt}
         </div>
       )}
@@ -97,7 +101,11 @@ function AgentActivity() {
         <Step
           active={status === 'generating'}
           done={past(['compiling', 'fixing', 'error'])}
-          label="Generating GLSL with Llama 3.3 70B"
+          label={
+            activeKind === 'refine'
+              ? 'Refining current shader with Llama 3.3 70B'
+              : 'Generating GLSL with Llama 3.3 70B'
+          }
         />
         <Step
           active={status === 'compiling'}
@@ -226,7 +234,8 @@ function CodeViewer({ shader }: { shader: string }) {
 }
 
 export function ChatPanel() {
-  const { generate, status, statusMessage, displayedShader, history } = useShaderStore();
+  const { generate, status, statusMessage, displayedShader, history, mode, setMode } =
+    useShaderStore();
 
   const [input, setInput] = useState('');
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -308,7 +317,11 @@ export function ChatPanel() {
                 className="w-full text-left px-3 py-2 rounded-lg border transition-colors animate-fade-in hover:opacity-80"
                 style={{ borderColor: 'var(--border)', background: 'var(--bg)', color: 'var(--text-dim)', fontSize: '0.75rem' }}
               >
-                <span style={{ color: 'var(--accent)' }}>↗ </span>
+                {entry.kind === 'refine' ? (
+                  <span style={{ color: 'var(--cyan)' }}>✎ </span>
+                ) : (
+                  <span style={{ color: 'var(--accent)' }}>↗ </span>
+                )}
                 {entry.prompt}
               </button>
             ))}
@@ -348,6 +361,40 @@ export function ChatPanel() {
         className="px-4 py-4 flex-shrink-0"
         style={{ borderTop: '1px solid var(--border)', background: 'var(--surface)' }}
       >
+        {/* Mode toggle — only meaningful once a shader is live */}
+        {history.length > 0 && (
+          <div
+            className="flex gap-1 mb-2 p-0.5 rounded-lg w-fit"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
+            role="group"
+            aria-label="Generation mode"
+          >
+            <button
+              onClick={() => setMode('refine')}
+              aria-pressed={mode === 'refine'}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+              style={
+                mode === 'refine'
+                  ? { background: 'var(--accent)', color: '#fff' }
+                  : { background: 'transparent', color: 'var(--text-dim)' }
+              }
+            >
+              ✎ Refine current
+            </button>
+            <button
+              onClick={() => setMode('new')}
+              aria-pressed={mode === 'new'}
+              className="px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors"
+              style={
+                mode === 'new'
+                  ? { background: 'var(--accent)', color: '#fff' }
+                  : { background: 'transparent', color: 'var(--text-dim)' }
+              }
+            >
+              ✦ New shader
+            </button>
+          </div>
+        )}
         <div
           className="flex gap-2 items-end rounded-xl p-3 transition-colors"
           style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
@@ -357,7 +404,11 @@ export function ChatPanel() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Describe a visual…"
+            placeholder={
+              mode === 'refine' && history.length > 0
+                ? 'Refine it: "darker", "slower", "add caustics"…'
+                : 'Describe a visual…'
+            }
             aria-label="Describe the visual experience you want to generate"
             disabled={busy}
             rows={1}

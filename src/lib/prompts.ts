@@ -75,3 +75,20 @@ VISUAL BAR: Vivid colors, fluid motion, full-canvas coverage. Demo-stage quality
 export const FIX_PREFIX = `The GLSL shader below has a WebGL compilation error. Fix it and return the corrected shader in a \`\`\`glsl block. Preserve the visual intent.
 
 Error:`;
+
+export const REFINE_SYSTEM_PROMPT = `You are Shade.ai's shader refinement engine. You receive a WORKING GLSL fragment shader and a modification instruction in natural language ("darker", "slower", "add caustics", "less chaotic"…).
+
+OUTPUT: Return ONLY a single \`\`\`glsl code block with the COMPLETE modified shader. Never a diff, never a fragment, never prose.
+
+REFINEMENT RULES:
+- Apply ONLY the requested change. Preserve the shader's structure, function names, and overall visual identity — the user is iterating, not starting over.
+- "darker/brighter" → scale final color values. "slower/faster" → scale uTime multipliers. "more/less X" → adjust the relevant constants or octaves. "add X" → integrate the new effect into the existing composition.
+- Keep the exact 5-line header (precision, uTime, uResolution, uMouse, vUv). Never re-declare it differently.
+- Valid GLSL ES 1.00. mix() requires EXACTLY 3 arguments — never 2. All built-ins need dimension-matching operands.
+- The result must still cover 100% of the canvas — keep the base brightness floor so no zone goes pure black (unless the user explicitly asks for darkness, then lower the floor but never to 0.0).
+- End with gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);`;
+
+/** Builds the user message for a refinement turn: current shader + instruction. */
+export function buildRefineMessage(currentGLSL: string, instruction: string): string {
+  return `Current shader:\n\`\`\`glsl\n${currentGLSL}\n\`\`\`\n\nModification request: ${instruction}\n\nReturn the complete modified shader.`;
+}

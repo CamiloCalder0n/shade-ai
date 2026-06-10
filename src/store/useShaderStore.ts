@@ -1,6 +1,7 @@
 'use client';
 import { create } from 'zustand';
 import { DEFAULT_FRAGMENT_SHADER } from '@/lib/glsl';
+import { buildRefineMessage } from '@/lib/prompts';
 
 export type Status =
   | 'idle'
@@ -9,6 +10,9 @@ export type Status =
   | 'fixing'
   | 'ready'
   | 'error';
+
+/** 'new' generates from scratch; 'refine' modifies the live shader. */
+export type GenMode = 'new' | 'refine';
 
 export interface ClaudeMessage {
   role: 'user' | 'assistant';
@@ -19,39 +23,45 @@ export interface ChatEntry {
   id: string;
   prompt: string;
   shader: string;
+  kind: GenMode;
   timestamp: number;
 }
 
 interface ShaderStore {
   /** Shader currently applied to the WebGL canvas (always valid). */
   displayedShader: string;
-  /** Latest shader received from Claude (may still be compiling/broken). */
+  /** Latest shader received from the model (may still be compiling/broken). */
   pendingShader: string | null;
   status: Status;
   statusMessage: string;
   /** Raw GPU compile/link error from the last failed attempt (shown in UI). */
   lastError: string | null;
-  /** Full Claude conversation history for multi-turn context. */
+  /** Full model conversation history for multi-turn context. */
   conversation: ClaudeMessage[];
   /** Display history of past prompts and their resulting shaders. */
   history: ChatEntry[];
   retryCount: number;
   currentPrompt: string;
+  /** How the next prompt will be interpreted. Auto-set to 'refine' once a shader is live. */
+  mode: GenMode;
+  /** What the in-flight request is (drives UI labels + history entry kind). */
+  activeKind: GenMode;
 
   generate: (prompt: string) => Promise<void>;
   /** Called by ShaderPlane when WebGL compilation fails. */
   reportCompilationError: (error: string) => void;
+  setMode: (mode: GenMode) => void;
   setStatus: (status: Status, message?: string) => void;
   reset: () => void;
 }
 
 const MAX_RETRIES = 3;
 
-async function callShaderAPI(messages: ClaudeMessage[]): Promise<string> {
+async function callShaderAPI(messages: ClaudeMessage[], mode: GenMode = 'new'): Promise<string> {
   const res = await fetch('/api/shader', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages }),
+    body: JSON.stringify({ messages, mode: mode === 'refine' ? 'refine' : 'generate' }),
   });
 
   if (!res.ok) {
@@ -73,24 +83,37 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
   history: [],
   retryCount: 0,
   currentPrompt: '',
+  mode: 'new',
+  activeKind: 'new',
+
+  setMode: (mode) => set({ mode }),
 
   setStatus: (status, message) =>
     set({ status, statusMessage: message ?? statusLabel(status) }),
 
   generate: async (prompt) => {
+    const { mode, history, displayedShader } = get();
+    // Refine only makes sense once a generated shader is live.
+    const isRefine = mode === 'refine' && history.length > 0;
+
     set({
       status: 'generating',
-      statusMessage: 'Generating shader…',
+      statusMessage: isRefine ? 'Refining shader…' : 'Generating shader…',
       currentPrompt: prompt,
       retryCount: 0,
       lastError: null,
+      activeKind: isRefine ? 'refine' : 'new',
     });
 
-    const userMsg: ClaudeMessage = { role: 'user', content: prompt };
+    // A refinement embeds the CURRENT live shader — not whatever the
+    // conversation last produced — so refining works correctly even after
+    // the user switched shaders via History.
+    const userContent = isRefine ? buildRefineMessage(displayedShader, prompt) : prompt;
+    const userMsg: ClaudeMessage = { role: 'user', content: userContent };
     const conversation = [...get().conversation, userMsg];
 
     try {
-      const raw = await callShaderAPI(conversation);
+      const raw = await callShaderAPI(conversation, isRefine ? 'refine' : 'new');
       const { extractGLSL } = await import('@/lib/glsl');
       const glsl = extractGLSL(raw);
 
@@ -98,6 +121,8 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
 
       const assistantMsg: ClaudeMessage = { role: 'assistant', content: raw };
 
+      // From here the pipeline is IDENTICAL to a fresh generation:
+      // pendingShader → ShaderPlane gate → testShaderProgram → apply or fix.
       set({
         pendingShader: glsl,
         conversation: [...conversation, assistantMsg],
@@ -113,7 +138,7 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
   },
 
   reportCompilationError: async (error) => {
-    const { retryCount, conversation, pendingShader, currentPrompt } = get();
+    const { retryCount, conversation, pendingShader } = get();
 
     if (retryCount >= MAX_RETRIES) {
       set({
@@ -172,6 +197,8 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
       history: [],
       retryCount: 0,
       currentPrompt: '',
+      mode: 'new',
+      activeKind: 'new',
     }),
 }));
 
@@ -187,13 +214,14 @@ function statusLabel(s: Status): string {
   return map[s];
 }
 
-/** Called by ShaderPlane when shader compiles successfully. */
+/** Called by ShaderPlane when a shader passes validation. */
 export function applyCompiledShader(glsl: string) {
   useShaderStore.setState((s) => {
     const newEntry: ChatEntry = {
       id: crypto.randomUUID(),
       prompt: s.currentPrompt,
       shader: glsl,
+      kind: s.activeKind,
       timestamp: Date.now(),
     };
     return {
@@ -203,6 +231,8 @@ export function applyCompiledShader(glsl: string) {
       statusMessage: 'Live',
       lastError: null,
       history: [newEntry, ...s.history].slice(0, 20),
+      // A shader is now live — default the next prompt to refinement.
+      mode: 'refine',
     };
   });
 }

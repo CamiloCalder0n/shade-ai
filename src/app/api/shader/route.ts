@@ -1,5 +1,5 @@
 import Groq from 'groq-sdk';
-import { SHADER_SYSTEM_PROMPT } from '@/lib/prompts';
+import { SHADER_SYSTEM_PROMPT, REFINE_SYSTEM_PROMPT } from '@/lib/prompts';
 
 const MODEL = 'llama-3.3-70b-versatile';
 const MAX_MESSAGES = 24; // bound conversation growth (cost + context safety)
@@ -25,10 +25,15 @@ export async function POST(req: Request) {
     return Response.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  const incoming = (raw as { messages?: unknown })?.messages;
+  const body = raw as { messages?: unknown; mode?: unknown };
+  const incoming = body?.messages;
   if (!Array.isArray(incoming) || incoming.length === 0) {
     return Response.json({ error: 'No messages provided' }, { status: 400 });
   }
+
+  // 'refine' switches the system prompt to shader-modification mode;
+  // anything else (or absent) falls back to generation. Same pipeline after.
+  const systemPrompt = body.mode === 'refine' ? REFINE_SYSTEM_PROMPT : SHADER_SYSTEM_PROMPT;
 
   const messages: ChatMessage[] = [];
   for (const m of incoming as ChatMessage[]) {
@@ -51,7 +56,7 @@ export async function POST(req: Request) {
       model: MODEL,
       max_tokens: 3072,
       temperature: 0.8,
-      messages: [{ role: 'system', content: SHADER_SYSTEM_PROMPT }, ...trimmed],
+      messages: [{ role: 'system', content: systemPrompt }, ...trimmed],
     });
 
     const content = response.choices[0]?.message?.content ?? '';
