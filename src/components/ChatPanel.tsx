@@ -1,6 +1,7 @@
 'use client';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useShaderStore, type Status } from '@/store/useShaderStore';
+import { toR3FComponent, toStandaloneHTML } from '@/lib/exportTemplates';
 
 const EXAMPLE_PROMPTS = [
   'Aurora borealis over a dark ocean',
@@ -148,6 +149,96 @@ function AgentActivity() {
   );
 }
 
+/** "Export ▾" dropdown: copy the shader as a ready-to-paste R3F component
+ *  or a standalone HTML file. Turns a generated shader into usable code. */
+function ExportMenu({ shader }: { shader: string }) {
+  const [open, setOpen] = useState(false);
+  const [copiedItem, setCopiedItem] = useState<string | null>(null);
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Close on click-outside / Escape
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [open]);
+
+  const copyAs = useCallback(
+    async (kind: 'r3f' | 'html') => {
+      const code = kind === 'r3f' ? toR3FComponent(shader) : toStandaloneHTML(shader);
+      try {
+        await navigator.clipboard.writeText(code);
+        setCopiedItem(kind);
+        setTimeout(() => {
+          setCopiedItem(null);
+          setOpen(false);
+        }, 900);
+      } catch {
+        /* clipboard unavailable — ignore */
+      }
+    },
+    [shader],
+  );
+
+  const items: Array<{ kind: 'r3f' | 'html'; label: string }> = [
+    { kind: 'r3f', label: 'Copy as React (R3F)' },
+    { kind: 'html', label: 'Copy as HTML' },
+  ];
+
+  return (
+    <div ref={wrapRef} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        aria-label="Export shader as code"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        className="flex items-center gap-1.5 px-2 py-1 rounded transition-colors hover:opacity-80"
+        style={{ color: open ? 'var(--accent)' : 'var(--text-dim)' }}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+          <polyline points="7 9 12 4 17 9" />
+          <line x1="12" y1="4" x2="12" y2="16" />
+        </svg>
+        Export
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="Export options"
+          className="absolute right-0 top-full mt-1 z-50 rounded-lg border overflow-hidden min-w-[180px] animate-fade-in"
+          style={{ borderColor: 'var(--border)', background: 'var(--surface-2)', boxShadow: '0 8px 24px rgba(0,0,0,.4)' }}
+        >
+          {items.map(({ kind, label }) => (
+            <button
+              key={kind}
+              role="menuitem"
+              onClick={() => copyAs(kind)}
+              className="w-full text-left px-3 py-2 text-xs transition-colors hover:opacity-80"
+              style={{
+                color: copiedItem === kind ? 'var(--success)' : 'var(--text)',
+                background: 'transparent',
+              }}
+            >
+              {copiedItem === kind ? '✓ Copied' : label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CodeViewer({ shader }: { shader: string }) {
   const [expanded, setExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
@@ -190,6 +281,8 @@ function CodeViewer({ shader }: { shader: string }) {
           </span>
           <span style={{ color: 'var(--accent)' }}>{expanded ? '▲' : '▼'}</span>
         </button>
+        <div className="flex items-center gap-1">
+        <ExportMenu shader={shader} />
         <button
           onClick={copy}
           aria-label="Copy GLSL to clipboard"
@@ -213,6 +306,7 @@ function CodeViewer({ shader }: { shader: string }) {
             </>
           )}
         </button>
+        </div>
       </div>
       {expanded && (
         <div

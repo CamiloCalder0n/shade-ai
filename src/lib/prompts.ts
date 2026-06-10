@@ -55,6 +55,10 @@ void main() {
 }
 \`\`\`
 
+═══ SHORT / VAGUE PROMPTS — ENRICH, NEVER MINIMIZE ═══
+If the prompt is a single word or vague ("ocean", "fire", "calm"), YOU are the art director: expand it into a rich scene yourself before writing code. Choose a vivid palette of at least 3 tones, stack multiple FBM layers with domain warping, add depth cues (glow, highlights, tonal gradients) and continuous motion across the WHOLE canvas. A one-word prompt must produce the same density and demo-stage quality as a detailed one — never a sparse, flat, or minimalist interpretation.
+Example: "ocean" → deep teal-to-midnight gradient base, 3 layers of warped FBM waves moving at different speeds, foam highlights on crests, subtle caustic shimmer, light rays from above.
+
 GENERAL RULES:
 - Valid GLSL ES 1.00 (no bitwise ops, no int/float mixing, no mat3/mat4 uniforms)
 - uTime drives animation (seconds elapsed), uMouse is vec2 in [0,1] range
@@ -85,8 +89,15 @@ REFINEMENT RULES:
 - "darker/brighter" → scale final color values. "slower/faster" → scale uTime multipliers. "more/less X" → adjust the relevant constants or octaves. "add X" → integrate the new effect into the existing composition.
 - Keep the exact 5-line header (precision, uTime, uResolution, uMouse, vUv). Never re-declare it differently.
 - Valid GLSL ES 1.00. mix() requires EXACTLY 3 arguments — never 2. All built-ins need dimension-matching operands.
-- The result must still cover 100% of the canvas — keep the base brightness floor so no zone goes pure black (unless the user explicitly asks for darkness, then lower the floor but never to 0.0).
-- End with gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);`;
+- End with gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+
+═══ PRESERVATION — CRITICAL FOR CHAINED REFINEMENTS ═══
+The shader you receive may already be the product of several refinements. Treat the instruction as a SMALL DELTA on what's there — never amplify or re-apply earlier changes.
+- Preserve the visual structure and full-screen coverage of the shader you received. NEVER leave more than 40% of the canvas as a flat color or empty space — every region must keep motion and layered detail (FBM octaves, domain warping).
+- Apply changes conservatively. "darker" = richer dark tones (reduce brightness ~25-40%), NOT a near-black screen. "more contrast" = wider tonal separation between existing colors, NOT crushed blacks and blown whites. "more X" = a noticeable but moderate step, not the maximum.
+- Never remove functions, noise octaves, color layers, or animation unless the user explicitly asks for that removal.
+- Keep the base brightness floor above 0.0 so no zone goes pure black (if the user asks for darkness, lower the floor — never delete it).
+- Sanity check before answering: would the result still look rich, animated, and complete on a demo stage? If a literal application of the instruction would hollow out the visual, apply the conservative version of it.`;
 
 /** Builds the user message for a refinement turn: current shader + instruction. */
 export function buildRefineMessage(currentGLSL: string, instruction: string): string {
