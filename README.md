@@ -4,14 +4,13 @@
 
 ### Type a vibe. Watch a GPU shader write, compile, and fix itself — live.
 
+🔗 **Live Demo:** https://shade-ai-nine.vercel.app
+
 Shade.ai turns a plain-language prompt into a real-time WebGL fragment shader. The twist: when the generated GLSL fails to compile, the **exact GPU error is fed back to the model**, which rewrites the code until it runs — a self-healing loop you can watch happen.
 
 *Microsoft Agents League · Creative Apps track*
 
-<!-- TODO: restore once docs/aurora.png is committed:
 ![Aurora borealis shader](docs/aurora.png)
--->
-*🌌 Screenshot coming soon — aurora borealis shader, generated live*
 
 </div>
 
