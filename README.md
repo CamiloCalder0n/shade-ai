@@ -6,21 +6,53 @@
 
 🔗 **Live Demo:** https://shade-ai-nine.vercel.app
 
-Shade.ai turns a plain-language prompt into a real-time WebGL fragment shader. The twist: when the generated GLSL fails to compile, the **exact GPU error is fed back to the model**, which rewrites the code until it runs — a self-healing loop you can watch happen.
+![Next.js 16](https://img.shields.io/badge/Next.js_16-000000?logo=nextdotjs&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![Three.js + React Three Fiber](https://img.shields.io/badge/Three.js_+_R3F-000000?logo=threedotjs&logoColor=white)
+![Groq · Llama 3.3 70B](https://img.shields.io/badge/Groq-Llama_3.3_70B-F55036)
+![Deployed on Vercel](https://img.shields.io/badge/Vercel-000000?logo=vercel&logoColor=white)
+![License: MIT](https://img.shields.io/badge/License-MIT-7c3aed)
 
 *Microsoft Agents League · Creative Apps track*
 
-![Aurora borealis shader](docs/aurora.png)
+![Aurora borealis shader generated live by Shade.ai](docs/aurora.png)
 
 </div>
 
----
+## Table of contents
 
-## Why it's interesting
+- [What it does](#what-it-does)
+- [The self-healing loop](#the-self-healing-loop)
+- [Features](#features)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Getting started](#getting-started)
+- [How it was built](#how-it-was-built)
+- [License](#license)
 
-Most "AI generates code" demos hand you code and hope it runs. Shade.ai closes the loop: it **validates every shader against a real GPU** (compile **and** link), and treats a compiler error not as a dead end but as the next turn of a conversation. The agentic correction loop is visible in the UI — you see the GPU error and the fix happen in real time.
+## What it does
 
----
+Shade.ai turns a plain-language prompt — *"aurora borealis over a dark ocean"* — into a real-time WebGL fragment shader running full-screen in your browser. Once a shader is live, you keep talking to it: *"make it darker and slower"* edits the running GLSL instead of starting over. Every shader is validated on your actual GPU before it ever reaches the canvas.
+
+## The self-healing loop
+
+Most "AI writes code" demos hand you code and hope it runs. Shade.ai treats the GPU as the referee — **this is not a syntax check; it's real WebGL validation against real driver output**:
+
+1. The prompt and full conversation go to **Llama 3.3 70B** on Groq with a shader-specialist system prompt.
+2. The returned GLSL is validated by `testShaderProgram()` using the renderer's **own** WebGL context: it compiles the vertex + fragment shaders (`COMPILE_STATUS`) **and links them into a program** (`LINK_STATUS`).
+3. **On failure**, the exact GPU info-log is fed back to the model as the next conversation turn — *"this is the GPU error, fix it"* — for up to **3 attempts**. The whole loop is visible in the UI: you watch the error appear and the fix land.
+4. **On success**, the shader fades in on a fullscreen quad. A failed generation never replaces the last valid shader.
+
+> **Why link, not just compile?** A fragment shader can compile in isolation yet fail when linked with the vertex shader — surfacing in three.js as `VALIDATE_STATUS false`. Validating compile **and** link, on the renderer's real context, catches those before they ever reach the visible canvas.
+
+## Features
+
+- **Natural language → GLSL, in real time** — type a vibe, get a living shader in seconds.
+- **Self-healing loop, visible to the user** — the agentic correction steps (generate → compile on GPU → catch error → fix) render live in the panel, GPU error log included.
+- **Conversational refinement** — with a shader live, *"darker"*, *"slower"*, or *"add caustics"* make surgical edits that preserve the shader's structure and identity instead of regenerating from scratch.
+- **Code export** — copy any shader as a ready-to-paste **React (R3F) component** or a **standalone HTML file** that runs by double-clicking it.
+- **PNG export** — capture the current frame straight from the canvas.
+- **Accessible by default** — `prefers-reduced-motion` freezes the time uniform (holds a developed frame instead of killing the render), every control is keyboard-focusable with visible focus rings, and status updates announce via `aria-live`.
 
 ## Architecture
 
@@ -30,7 +62,7 @@ flowchart LR
   API --> G["Groq · Llama 3.3 70B"]
   G --> GLSL[GLSL fragment shader]
   GLSL --> V{{"testShaderProgram()<br/>compile + link on GPU"}}
-  V -- "compile/link error" --> FIX["Correction loop<br/>send error back · max 3×"]
+  V -- "compile/link error" --> FIX["Self-healing loop<br/>GPU error → model · max 3×"]
   FIX --> G
   V -- valid --> R["ShaderPlane<br/>render + fade-in"]
   R --> C([Live WebGL canvas])
@@ -41,82 +73,68 @@ flowchart LR
   class V check;
 ```
 
-### The self-correction loop
-
-1. The prompt + full conversation go to the API route, which calls **Llama 3.3 70B** on Groq with a shader-specialist system prompt.
-2. The returned GLSL is validated by `testShaderProgram()` using the renderer's **own** WebGL context: it compiles the vertex + fragment shaders (`COMPILE_STATUS`) and links them into a program (`LINK_STATUS`).
-3. **On failure**, the full info-log is sent back to the model as a new turn — *"this is the GPU error, fix it"* — up to **3 attempts**.
-4. **On success**, the shader is mounted on a fullscreen quad and fades in. The previous valid shader is *never* replaced by an unvalidated one.
-
-> **Why link, not just compile?** A fragment shader can compile alone yet fail when linked with the vertex shader — surfacing as `THREE.WebGLProgram: VALIDATE_STATUS false`. Validating compile **and** link, on the renderer's real context, catches those before they ever reach the visible canvas.
-
----
-
-## Reliability
-
-- **Validated-only rendering** — the GPU only ever receives a shader that passed compile + link. A failed generation keeps the last valid shader on screen.
-- **No leaked contexts** — validation reuses the renderer's WebGL context instead of allocating throwaway ones (which the browser caps at ~16, silently breaking validation).
-- **Bounded correction loop** — max 3 self-heal attempts, then a clear message.
-- **Hardened API route** — validates request shape, caps message length, bounds conversation growth, and fails with a readable error if `GROQ_API_KEY` is missing.
-
-## Accessibility
-
-- **`prefers-reduced-motion`** — freezes the shader's time uniform (holds a developed frame) and disables all UI animation, without breaking the render.
-- **Keyboard-first** — every control is a native, focusable element with a visible focus ring.
-- **Screen readers** — status uses `aria-live`; the prompt input, generate, copy-GLSL, and screenshot controls have ARIA labels.
-
----
-
-## Stack
-
-| Layer | Tech |
-|---|---|
-| Framework | **Next.js 16** (App Router, Turbopack) |
-| Language | **TypeScript** |
-| Styling | **Tailwind CSS v4** |
-| 3D / WebGL | **React Three Fiber** + **three.js** |
-| State | **Zustand** |
-| AI | **Groq** · `llama-3.3-70b-versatile` |
-
----
-
-## Run it
-
-```bash
-npm install
-echo "GROQ_API_KEY=gsk_your_key_here" > .env.local
-npm run dev          # → http://localhost:3000
-```
-
-Type a prompt or click an example chip. Use **Copy** to grab the GLSL, **PNG** (bottom-right of the canvas) to export the current frame.
-
----
-
-## Project structure
-
 ```
 src/
 ├── app/
-│   ├── api/shader/route.ts   # validated, hardened LLM endpoint
+│   ├── api/shader/route.ts   # validated, hardened LLM endpoint (generate + refine modes)
+│   ├── layout.tsx            # metadata, OG/Twitter cards
 │   ├── page.tsx              # split layout: canvas + chat panel
 │   └── globals.css           # design tokens, animations, a11y
 ├── components/
 │   ├── ShaderCanvas.tsx      # R3F Canvas, fade-in reveal, PNG export
 │   ├── ShaderPlane.tsx       # validation gate + reduced-motion freeze
-│   └── ChatPanel.tsx         # prompt, visible correction loop, code viewer
+│   └── ChatPanel.tsx         # prompt, visible correction loop, code viewer, export menu
 ├── lib/
-│   ├── glsl.ts               # extractGLSL() + testShaderProgram() (compile+link)
+│   ├── glsl.ts               # extractGLSL() + testShaderProgram() (compile + link)
+│   ├── exportTemplates.ts    # shader → R3F component / standalone HTML
 │   ├── shaderDefaults.ts     # domain-warped FBM nebula (default shader)
-│   └── prompts.ts            # shader-specialist system prompt
+│   └── prompts.ts            # generation + refinement system prompts
 └── store/
     └── useShaderStore.ts     # generate → compile → fix state machine
 ```
 
----
+**Reliability guarantees** baked into the pipeline:
 
-## Built with GitHub Copilot
+- **Validated-only rendering** — the material only ever receives a shader that passed compile + link; failures keep the last valid shader on screen.
+- **No leaked contexts** — validation reuses the renderer's WebGL context instead of allocating throwaway ones (browsers cap live contexts at ~16, which silently breaks naive validators).
+- **Bounded loop** — max 3 self-heal attempts, then a clear, non-destructive error message.
+- **Hardened API route** — validates request shape, caps message length, bounds conversation growth, and fails with a readable error if the API key is missing.
 
-Shade.ai was developed with **GitHub Copilot** as an AI pair programmer in VS Code — scaffolding the React Three Fiber pipeline, iterating on the GLSL system prompt, and debugging the WebGL compile/link flow. The self-correcting development loop Copilot enables in the editor is exactly what Shade.ai puts on stage: a model that writes, tests, and fixes its own GPU code.
+## Tech stack
+
+| Layer | Tech |
+|---|---|
+| Framework | **Next.js 16** (App Router, Turbopack) |
+| Language | **TypeScript 5** |
+| 3D / WebGL | **React Three Fiber 9** + **three.js** |
+| Shaders | **GLSL ES 1.00** (WebGL1-compatible) |
+| AI | **Groq** · `llama-3.3-70b-versatile` |
+| State | **Zustand** |
+| Styling | **Tailwind CSS v4** |
+| Hosting | **Vercel** |
+
+## Getting started
+
+```bash
+git clone https://github.com/CamiloCalder0n/shade-ai.git
+cd shade-ai
+npm install
+
+# Get a free API key at https://console.groq.com
+echo "GROQ_API_KEY=gsk_your_key_here" > .env.local
+
+npm run dev   # → http://localhost:3000
+```
+
+Type a prompt or click an example chip. With a shader live, use **Refine** to iterate on it, **Export** to copy it as R3F/HTML code, **Copy** for the raw GLSL, or **PNG** (bottom-right of the canvas) to save the current frame.
+
+## How it was built
+
+Shade.ai was built with **AI-assisted development using Claude Code** (Anthropic's CLI coding agent), human-directed throughout: scaffolding the React Three Fiber pipeline, iterating the GLSL system prompts, and debugging the WebGL compile/link flow. That workflow is also the thesis of the project — the same *write → run → read the real error → fix* loop that built the app is what the app performs on stage, with the GPU as the compiler.
+
+## License
+
+[MIT](LICENSE) © 2026 CamiloCalder0n
 
 ---
 
