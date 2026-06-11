@@ -3,14 +3,26 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useShaderStore, type Status } from '@/store/useShaderStore';
 import { toR3FComponent, toStandaloneHTML } from '@/lib/exportTemplates';
 
-const EXAMPLE_PROMPTS = [
-  'Aurora borealis over a dark ocean',
-  'Fractal galaxy with spinning nebulae',
-  'Molten lava lamp with morphing blobs',
-  'Neon synthwave sunset grid',
-  'Voronoi crystal cave',
-  'Iridescent soap bubble shimmer',
-];
+const CURATED_PROMPTS = [
+  'iridescent soap bubble with caustics',
+  'aurora borealis over a dark ocean',
+  'molten obsidian with glowing orange cracks',
+  'swirling galaxy with nebula dust',
+  'liquid chrome with rainbow reflections',
+  'bioluminescent jellyfish in the deep',
+  'voronoi crystal cave glowing from within',
+  'neon synthwave grid at sunset',
+  'flowing lava lamp blobs',
+  'frosted glass with refracted light',
+  'electric plasma storm',
+  'golden honey dripping in slow motion',
+  'cosmic black hole bending starlight',
+  'shimmering northern silk in the wind',
+] as const;
+
+function getRandomPrompt() {
+  return CURATED_PROMPTS[Math.floor(Math.random() * CURATED_PROMPTS.length)];
+}
 
 function firstLines(text: string, n = 3): string {
   return text.split('\n').filter(Boolean).slice(0, n).join('\n');
@@ -434,11 +446,12 @@ export function ChatPanel() {
               <p className="text-[10px] uppercase tracking-widest" style={{ color: 'var(--text-dim)' }}>
                 Try these
               </p>
-              {EXAMPLE_PROMPTS.map((p) => (
+              {CURATED_PROMPTS.map((p) => (
                 <button
                   key={p}
                   onClick={() => submit(p)}
-                  className="text-left text-xs px-3 py-2 rounded-lg border transition-all hover:opacity-80"
+                  type="button"
+                  className="text-left text-xs px-3 py-2 rounded-lg border transition-all hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
                   style={{ borderColor: 'var(--border)', background: 'var(--bg)', color: 'var(--text)' }}
                 >
                   <span style={{ color: 'var(--accent)' }}>→ </span>
@@ -509,24 +522,40 @@ export function ChatPanel() {
             className="flex-1 resize-none bg-transparent outline-none text-sm placeholder:opacity-30"
             style={{ color: 'var(--text)', lineHeight: '1.5', minHeight: '24px' }}
           />
-          <button
-            onClick={() => submit(input)}
-            disabled={busy || !input.trim()}
-            className="flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30"
-            style={{ background: 'var(--accent)', color: '#fff' }}
-            aria-label="Generate shader from prompt"
-          >
-            {busy ? (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            ) : (
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="22" y1="2" x2="11" y2="13" />
-                <polygon points="22 2 15 22 11 13 2 9 22 2" />
-              </svg>
-            )}
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                const prompt = getRandomPrompt();
+                setInput(prompt);
+                inputRef.current?.focus();
+              }}
+              aria-label="Surprise me with a random shader prompt"
+              className="px-3 h-8 rounded-lg text-xs font-medium transition-all disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              style={{ background: 'var(--surface)', color: 'var(--text)' }}
+            >
+              Surprise me
+            </button>
+            <button
+              type="button"
+              onClick={() => submit(input)}
+              disabled={busy || !input.trim()}
+              className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-surface"
+              style={{ background: 'var(--accent)', color: '#fff' }}
+              aria-label="Generate shader from prompt"
+            >
+              {busy ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              ) : (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" />
+                  <polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              )}
+            </button>
+          </div>
         </div>
         <p className="text-center text-[10px] mt-2" style={{ color: 'var(--text-dim)' }}>
           Enter to send · Shift+Enter for newline
