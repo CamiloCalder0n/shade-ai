@@ -8,7 +8,10 @@ Shade.ai turns a plain-language prompt into a real-time WebGL fragment shader. T
 
 *Microsoft Agents League · Creative Apps track*
 
+<!-- TODO: restore once docs/aurora.png is committed:
 ![Aurora borealis shader](docs/aurora.png)
+-->
+*🌌 Screenshot coming soon — aurora borealis shader, generated live*
 
 </div>
 
