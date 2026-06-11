@@ -56,6 +56,23 @@ Most "AI writes code" demos hand you code and hope it runs. Shade.ai treats the 
 
 ## Architecture
 
+### Development workflow
+
+Shade.ai was built with AI-assisted development, with each tool in a distinct role:
+
+```mermaid
+flowchart LR
+  CP["GitHub Copilot<br/>(VS Code)"] -- "example-prompt chips<br/>· UI utilities" --> CB[("Shade.ai<br/>codebase")]
+  CC["Claude Code<br/>(CLI agent)"] -- "core architecture · self-healing<br/>validation pipeline · refactors · docs" --> CB
+
+  classDef tool fill:#0d0e1a,stroke:#7c3aed,color:#c8d3f5;
+  classDef repo fill:#7c3aed,stroke:#7c3aed,color:#fff;
+  class CP,CC tool;
+  class CB repo;
+```
+
+### Runtime pipeline
+
 ```mermaid
 flowchart LR
   U([User prompt]) --> API[Next.js API route]
@@ -130,7 +147,12 @@ Type a prompt or click an example chip. With a shader live, use **Refine** to it
 
 ## How it was built
 
-Shade.ai was built with **AI-assisted development using Claude Code** (Anthropic's CLI coding agent), human-directed throughout: scaffolding the React Three Fiber pipeline, iterating the GLSL system prompts, and debugging the WebGL compile/link flow. That workflow is also the thesis of the project — the same *write → run → read the real error → fix* loop that built the app is what the app performs on stage, with the GPU as the compiler.
+Shade.ai was built with AI-assisted development, human-directed throughout, using two tools in distinct roles:
+
+- **GitHub Copilot** (in VS Code) — contributed the example-prompt chips and small UI utilities.
+- **Claude Code** (Anthropic's CLI coding agent) — the core architecture, the self-healing GPU validation pipeline, refactors, and documentation.
+
+That workflow is also the thesis of the project — the same *write → run → read the real error → fix* loop that built the app is what the app performs on stage, with the GPU as the compiler.
 
 ## License
 
