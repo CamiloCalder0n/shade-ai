@@ -14,7 +14,7 @@ export type Status =
 /** 'new' generates from scratch; 'refine' modifies the live shader. */
 export type GenMode = 'new' | 'refine';
 
-export interface ClaudeMessage {
+export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
@@ -37,7 +37,7 @@ interface ShaderStore {
   /** Raw GPU compile/link error from the last failed attempt (shown in UI). */
   lastError: string | null;
   /** Full model conversation history for multi-turn context. */
-  conversation: ClaudeMessage[];
+  conversation: ChatMessage[];
   /** Display history of past prompts and their resulting shaders. */
   history: ChatEntry[];
   retryCount: number;
@@ -57,7 +57,7 @@ interface ShaderStore {
 
 const MAX_RETRIES = 3;
 
-async function callShaderAPI(messages: ClaudeMessage[], mode: GenMode = 'new'): Promise<string> {
+async function callShaderAPI(messages: ChatMessage[], mode: GenMode = 'new'): Promise<string> {
   const res = await fetch('/api/shader', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -109,7 +109,7 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
     // conversation last produced — so refining works correctly even after
     // the user switched shaders via History.
     const userContent = isRefine ? buildRefineMessage(displayedShader, prompt) : prompt;
-    const userMsg: ClaudeMessage = { role: 'user', content: userContent };
+    const userMsg: ChatMessage = { role: 'user', content: userContent };
     const conversation = [...get().conversation, userMsg];
 
     try {
@@ -119,7 +119,7 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
 
       if (!glsl) throw new Error('No GLSL found in response');
 
-      const assistantMsg: ClaudeMessage = { role: 'assistant', content: raw };
+      const assistantMsg: ChatMessage = { role: 'assistant', content: raw };
 
       // From here the pipeline is IDENTICAL to a fresh generation:
       // pendingShader → ShaderPlane gate → testShaderProgram → apply or fix.
@@ -159,7 +159,7 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
 
     const fixPrompt = `The shader you generated has a GLSL compilation error:\n\n\`\`\`\n${error}\n\`\`\`\n\nBroken shader:\n\`\`\`glsl\n${pendingShader}\n\`\`\`\n\nPlease fix it and return the corrected shader.`;
 
-    const conversation2: ClaudeMessage[] = [
+    const conversation2: ChatMessage[] = [
       ...conversation,
       { role: 'user', content: fixPrompt },
     ];

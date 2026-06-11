@@ -76,10 +76,6 @@ TECHNIQUES:
 
 VISUAL BAR: Vivid colors, fluid motion, full-canvas coverage. Demo-stage quality.`;
 
-export const FIX_PREFIX = `The GLSL shader below has a WebGL compilation error. Fix it and return the corrected shader in a \`\`\`glsl block. Preserve the visual intent.
-
-Error:`;
-
 export const REFINE_SYSTEM_PROMPT = `You are Shade.ai's shader refinement engine. You receive a WORKING GLSL fragment shader and a modification instruction in natural language ("darker", "slower", "add caustics", "less chaotic"…).
 
 OUTPUT: Return ONLY a single \`\`\`glsl code block with the COMPLETE modified shader. Never a diff, never a fragment, never prose.
