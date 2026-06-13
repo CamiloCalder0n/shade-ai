@@ -157,7 +157,7 @@ export const useShaderStore = create<ShaderStore>((set, get) => ({
       lastError: error,
     });
 
-    const fixPrompt = `The shader you generated has a GLSL compilation error:\n\n\`\`\`\n${error}\n\`\`\`\n\nBroken shader:\n\`\`\`glsl\n${pendingShader}\n\`\`\`\n\nPlease fix it and return the corrected shader.`;
+    const fixPrompt = `The shader you generated has a GLSL compilation error:\n\n\`\`\`\n${error}\n\`\`\`\n\nBroken shader:\n\`\`\`glsl\n${pendingShader}\n\`\`\`\n\nFix it. Return ONLY the full corrected shader as raw GLSL starting at \`precision\` — no prose, no explanations, no markdown fences.`;
 
     const conversation2: ChatMessage[] = [
       ...conversation,

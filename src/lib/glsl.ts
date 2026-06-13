@@ -8,14 +8,56 @@ void main() {
   gl_Position = vec4(position.xy, 0.0, 1.0);
 }`;
 
-export function extractGLSL(text: string): string | null {
-  // Match ```glsl, ```c, ```cpp, or plain ``` blocks
-  const match = text.match(/```(?:glsl|c|cpp|GLSL)?\s*\n([\s\S]*?)```/);
-  if (match) return match[1].trim();
+// The keywords/directives a GLSL ES 1.00 fragment shader can legally begin
+// with. The shader's real first token is one of these on its own line —
+// anything before it (a "This shader…" preamble, a stray fence, etc.) is the
+// model's prose and must never reach the compiler. `^` is anchored per-line
+// (m flag) so we don't match the word "precision" buried inside a sentence.
+const SHADER_START = /^[ \t]*(?:precision|#version|#ifdef|#ifndef|#define|uniform|varying|attribute)\b/m;
 
-  // Fallback: if text itself looks like a shader
-  if (text.includes('void main') && text.includes('gl_FragColor')) {
-    return text.trim();
+/**
+ * Extract ONLY the GLSL source from a raw model reply, robustly.
+ *
+ * The model sometimes prepends natural-language prose ("This shader creates…")
+ * or wraps the code in markdown fences. Either one, passed verbatim to WebGL,
+ * produces `ERROR: 0:1: 'This' : syntax error` and drops us to the fallback
+ * shader. This strips both, in this order:
+ *   1. If a ```fenced``` block exists, take its inner contents.
+ *   2. Drop any leftover/stray fence markers (```glsl, ``` …).
+ *   3. Cut everything before the shader's real first line (precision/uniform/…).
+ *   4. Cut any trailing prose after the final closing brace.
+ *
+ * Returns null only when the text contains no recognisable fragment shader.
+ * Used on EVERY attempt — first generation, refinement, and each self-heal
+ * correction — so a prose preamble can never cause a trivial compile failure.
+ */
+export function extractGLSL(text: string): string | null {
+  if (!text) return null;
+
+  let src = text;
+
+  // 1. Prefer the contents of a fenced code block when present.
+  const fence = src.match(/```(?:glsl|c|cpp|GLSL)?[ \t]*\n?([\s\S]*?)```/);
+  if (fence) src = fence[1];
+
+  // 2. Remove any stray fence markers that survived (unbalanced ``` etc.).
+  src = src.replace(/```[a-zA-Z]*/g, '');
+
+  // 3. Discard any prose before the shader's real first line.
+  const start = src.match(SHADER_START);
+  if (start && start.index !== undefined) {
+    src = src.slice(start.index);
+  }
+
+  // 4. Discard any trailing prose after the shader's final closing brace.
+  const lastBrace = src.lastIndexOf('}');
+  if (lastBrace !== -1) src = src.slice(0, lastBrace + 1);
+
+  src = src.trim();
+
+  // Only return something that actually looks like a fragment shader.
+  if (src.includes('void main') && src.includes('gl_FragColor')) {
+    return src;
   }
 
   return null;
